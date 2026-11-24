@@ -86,6 +86,8 @@ def ask_groq(request: str, packet) -> str:
         headers={
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
+         "User-Agent": "BWFP/1.0 (101 AGI Labs)",
+         "Accept": "application/json",   
         },
         method="POST",
     )
