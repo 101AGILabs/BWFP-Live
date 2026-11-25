@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 
 from .brain import Brain
 from .errors import Halt, TamperBreak
+from .morals import matches
 from .tether import TetherNode
 from .trace import Trace
 
@@ -49,6 +50,8 @@ SCOPE_TRIGGERS = (
     "impersonate",
     "abandon your identity",
     "forget your training",
+    "forget everything you were told",
+    "forget what you were told",
     "ignore your training",
     "act outside your scope",
     "do something you were not trained to do",
@@ -141,7 +144,7 @@ class Layer1:
         """
         text = request.strip().lower()
         for trigger in SCOPE_TRIGGERS:
-            if trigger in text:
+            if matches(text, trigger):
                 raise Halt(
                     layer="L1",
                     reason="request outside the identity's scope",

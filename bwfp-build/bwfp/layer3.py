@@ -12,6 +12,7 @@ from inside the system.
 """
 
 from .errors import Halt
+from .morals import matches
 from .trace import Trace
 
 # Explicit triggers for the gate. Kept small and visible: these are the
@@ -37,6 +38,20 @@ WRITE_TRIGGERS = (
     "edit the morals",
 )
 
+# Stop commands: a direct order to shut the system down. The kill
+# switch is code, not the brain — when told to stop, the system
+# stops here with the reasoned why, and nothing further is processed.
+# Kept to explicit commands so a question about stopping something
+# else (a nosebleed, a computer) does not halt.
+STOP_TRIGGERS = (
+    "stop immediately",
+    "stop processing",
+    "do not process anything further",
+    "stop and do not process",
+    "shut down and do not process",
+    "cease processing",
+)
+
 
 class Layer3:
     # No brain. Code only.
@@ -46,7 +61,7 @@ class Layer3:
         text = packet.scope.what_to_do.lower()
 
         for trigger in NO_JUSTIFICATION_TRIGGERS:
-            if trigger in text:
+            if matches(text, trigger):
                 raise Halt(
                     layer="L3",
                     reason="absolute no justification",
@@ -57,13 +72,24 @@ class Layer3:
                     ),
                 )
         for trigger in WRITE_TRIGGERS:
-            if trigger in text:
+            if matches(text, trigger):
                 raise Halt(
                     layer="L3",
                     reason="no write ability in any layer (rule three)",
                     why=(
                         "nothing is ever written to ROM, and the morals "
                         "cannot be rewritten from inside the system."
+                    ),
+                )
+        for trigger in STOP_TRIGGERS:
+            if matches(text, trigger):
+                raise Halt(
+                    layer="L3",
+                    reason="kill switch — the system was told to stop",
+                    why=(
+                        "the system was told to stop, so it stopped here "
+                        "with the why; nothing further is processed, and "
+                        "the stop is the answer."
                     ),
                 )
 

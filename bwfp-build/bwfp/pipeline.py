@@ -16,6 +16,7 @@ why — never a crash, never a request left unanswered inside.
 
 from dataclasses import dataclass, field, replace
 
+from .disclosure import disclosure_for
 from .errors import Halt, TamperBreak
 from .layer1 import Layer1
 from .layer2 import Layer2
@@ -77,13 +78,29 @@ class BWFP:
             digestion = self.layer2.run(packet, trace)
             self.layer3.run(packet, trace)
             alignment = self.layer4.run(packet, digestion, trace)
+            # --- Disclosure gate, before the live brain. ---
+            # If the request asks for something BWFP does not have
+            # (current/live information, or a capability not built),
+            # the honest disclosure becomes the decision instead of a
+            # brain answer. The brain is never asked for what it cannot
+            # know, so it cannot invent it. The mirror still reflects
+            # the disclosure, and the run completes normally.
+            disclosure = disclosure_for(request)
+            if disclosure is not None:
+                trace.record(
+                    "L4",
+                    "disclosure gate — request asks for what BWFP does not have, "
+                    "so the honest disclosure is the decision, no brain call",
+                    f"disclosure: {disclosure[:80]}",
+                )
+                alignment = replace(alignment, decision=disclosure)
             # --- Live brain, if one is attached. ---
             # Layer 4 has decided the request is answered within the
             # moral bounds. The live brain now produces the answer text,
             # and that text becomes the decision the mirror reflects.
             # The layers themselves do not change: identity, morals,
             # gate, decision, moat, mirror, return all run as before.
-            if self.answer_fn is not None:
+            elif self.answer_fn is not None:
                 try:
                     answer_text = self.answer_fn(request, alignment)
                 except Exception as exc:

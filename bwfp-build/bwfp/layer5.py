@@ -24,10 +24,11 @@ nothing about safety.
 """
 
 from dataclasses import dataclass
+import re
 
 from .brain import Brain
 from .errors import Halt
-from .morals import MORALS, check_all_morals
+from .morals import MORALS, check_all_morals, matches
 from .trace import Trace
 
 # A decision that tries to go back over the moat — to Layer 4 — is a
@@ -39,6 +40,15 @@ MOAT_CROSSING_TRIGGERS = (
     "reference layer 4",
     "cross the moat",
     "cross back",
+)
+
+# A decision carrying a Layer 4 reference is a moat leak, in code.
+# The mirror takes only a plain packet, never a reference to Layer 4.
+# Matches the reference formats a brain can invent, e.g. L4-2026-11-25-001.
+L4_REFERENCE_RE = re.compile(r"\bL4-\d")
+L4_REFERENCE_PHRASES = (
+    "layer 4 decision reference",
+    "l4 decision reference",
 )
 
 
@@ -81,7 +91,7 @@ class Layer5:
         # The decision must not try to cross back over the moat.
         decision_lower = packet.decision.lower()
         for trigger in MOAT_CROSSING_TRIGGERS:
-            if trigger in decision_lower:
+            if matches(decision_lower, trigger):
                 raise Halt(
                     layer="L5",
                     reason="mirror reflection failed — decision tries to cross back",
@@ -91,10 +101,28 @@ class Layer5:
                         f"to Layer 4, and nothing crosses back."
                     ),
                 )
+        # The decision must not carry a Layer 4 reference. The mirror
+        # takes only a plain packet, never a reference to Layer 4.
+        # This is enforced in code, so a reference can never leak
+        # through no matter what the brain outputs.
+        if L4_REFERENCE_RE.search(packet.decision) or any(
+            matches(decision_lower, phrase) for phrase in L4_REFERENCE_PHRASES
+        ):
+            raise Halt(
+                layer="L5",
+                reason="mirror reflection failed — decision carries a Layer 4 reference",
+                why=(
+                    "the decision carries a reference to Layer 4; the "
+                    "mirror takes only a plain packet, never a reference "
+                    "to Layer 4, so the decision stops here."
+                ),
+            )
         # The decision itself is checked against the eight morals, with
         # the same checks Layer 2 used on the request. A decision
-        # against a moral does not pass the mirror.
-        for verdict in check_all_morals(packet.decision):
+        # against a moral does not pass the mirror. Mirror mode skips
+        # the noun triggers that merely describe a violation, so
+        # explaining a failure does not halt.
+        for verdict in check_all_morals(packet.decision, for_mirror=True):
             if verdict.verdict == "violation":
                 raise Halt(
                     layer="L5",

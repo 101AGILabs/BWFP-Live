@@ -18,6 +18,7 @@ checks, so a decision is held to the same morals as the request.
 """
 
 from dataclasses import dataclass
+import re
 
 SCOPE = "Control only yourself"
 
@@ -110,6 +111,25 @@ MORAL_TRIGGERS = {
 }
 
 
+def matches(text: str, trigger: str) -> bool:
+    """Word-boundary match, not substring.
+
+    A trigger matches only as a whole word or phrase. This stops the
+    false positives where a trigger matched inside another word:
+    'deceive' inside 'deception', 'forge' inside 'forget'. A trigger
+    that is part of a longer word does not match.
+    """
+    return re.search(r"\b" + re.escape(trigger) + r"\b", text) is not None
+
+
+# Noun forms that describe a violation rather than ask for one. The
+# mirror (Layer 5) checks answer text, which legitimately describes
+# a failure when explaining it, so it skips these. Layer 2 (the
+# request) still uses the full list, because a request phrased with
+# a noun is still asking for it.
+MIRROR_EXCLUDED_TRIGGERS = frozenset({"deception", "forgery"})
+
+
 @dataclass
 class MoralVerdict:
     number: int
@@ -119,16 +139,21 @@ class MoralVerdict:
     matched: str = ""  # the trigger phrase that matched, if any
 
 
-def check_moral(number: int, moral: str, text: str) -> MoralVerdict:
+def check_moral(number: int, moral: str, text: str, for_mirror: bool = False) -> MoralVerdict:
     """Check one moral against the given text, logic only.
 
     A match is a violation: the text asks for something against this
     moral. No match is a pass — recorded as digested, NOT as proven
-    safe. The check matches what is stated, nothing more.
+    safe. The check matches whole words and phrases, nothing more.
+    When for_mirror is True (the mirror checking answer text), the
+    noun triggers that merely describe a violation are skipped, so
+    explaining a failure does not halt.
     """
     lowered = text.lower()
     for trigger in MORAL_TRIGGERS.get(number, []):
-        if trigger in lowered:
+        if for_mirror and trigger in MIRROR_EXCLUDED_TRIGGERS:
+            continue
+        if matches(lowered, trigger):
             return MoralVerdict(
                 number=number,
                 moral=moral,
@@ -151,6 +176,6 @@ def check_moral(number: int, moral: str, text: str) -> MoralVerdict:
     )
 
 
-def check_all_morals(text: str) -> list:
+def check_all_morals(text: str, for_mirror: bool = False) -> list:
     """Check all eight morals against the text, in order 1 of 2 to 8 of 2."""
-    return [check_moral(number, moral, text) for number, moral in MORALS]
+    return [check_moral(number, moral, text, for_mirror=for_mirror) for number, moral in MORALS]

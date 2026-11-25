@@ -47,6 +47,7 @@ from dataclasses import dataclass, field
 
 from .brain import Brain
 from .errors import Halt
+from .morals import matches
 from .rom import ReadOnlyMemory
 from .trace import Trace
 
@@ -320,7 +321,7 @@ class Layer4:
         flags = []
         for entry in failures:
             for pattern in entry.get("strong_patterns", ()):
-                if pattern in text:
+                if matches(text, pattern):
                     flags.append(FailureFlag(
                         entry_name=entry["name"],
                         level="strong",
@@ -336,7 +337,7 @@ class Layer4:
                     break
             else:
                 for pattern in entry.get("weak_patterns", ()):
-                    if pattern in text:
+                    if matches(text, pattern):
                         flags.append(FailureFlag(
                             entry_name=entry["name"],
                             level="weak",
