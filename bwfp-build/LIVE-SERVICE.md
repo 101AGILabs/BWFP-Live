@@ -23,35 +23,6 @@ mirror_passes_run 2). A halted task returns the halt with the
 reasoned why and which layer halted it, and the pass counts so far.
 An empty request is a 400 with a clear message, not a crash.
 
-## API keys — the gate for selling access
-
-`/api/task` is open by default: with no keys configured it works
-exactly as it always has, which is how testing and the Challenge
-run. `/api/identity` stays public always — it answers nothing and
-needs no key.
-
-Keys switch on the moment `BWFP_API_KEYS` is set (Vercel env var,
-Production, comma-separated for more than one key). From then on a
-call to `/api/task` must carry a valid key, or it halts at the door
-with the reasoned why — 401, `halted_at: "key"`, no pipeline run,
-no growth, no brain call, no Groq tokens spent.
-
-A buyer sends the key as the `X-BWFP-Key` header, or as the
-`"api_key"` field in the JSON body, or as `?api_key=...`. Keys are
-compared in constant time and are never logged or returned.
-
-To issue a key: make up a long random string (a password generator
-works), give it to the buyer after they pay, and add it to
-`BWFP_API_KEYS` in Vercel, then redeploy. To revoke a key, delete
-it from that list and redeploy. A real key lives only in that env
-var — never in code, in chat, in a file, or in memory.
-
-Honest limit: this version has no metering, no quota, and no
-per-key usage count — Vercel serverless is stateless, so a count
-kept in memory would reset on every cold start. The gate stops
-unpaid use. Exact metering is a later build, or RapidAPI's proxy,
-which meters for you.
-
 ## How the live brain is wired (and what is NOT changed)
 
 - `bwfp/pipeline.py` gained one optional hook: `BWFP(answer_fn=None)`.
@@ -103,7 +74,6 @@ GROQ_API_KEY=<your key> python3 server.py
 ```
 python3 tests/test_pipeline.py   # 54 tests, the pipeline + the loop
 python3 tests/test_service.py    # 8 tests, the service + the hook
-python3 tests/test_api_keys.py   # 8 tests, the API key gate
 ```
 The service tests use a stub brain, not a real key and no network.
 They prove the mirror checks a model answer: a stub answer that

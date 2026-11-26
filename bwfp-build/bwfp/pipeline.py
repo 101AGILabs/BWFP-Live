@@ -1,4 +1,4 @@
-"""The pipeline: one input through all six layers, in order.
+"""The pipeline: one input through all six layers, in order — with the loop.
 
   L1  three identities, tether nodes between each, one brain
   L2  one brain digesting through the eight morals, node between teeth
@@ -8,6 +8,23 @@
   MOAT  the gap — the mirror does not attach to Layer 4
   L5  the mirror, one brain — reflection only, nothing back
   L6  the return — proves all alignments, returns the identity
+
+THE LOOP (Tony, 2026-11-25): four continuous resolves, then two
+mirror passes.
+  - Resolves: L1 → L2 → L3 → L4 runs four times on the request.
+    Pass 1 resolves it; passes 2–4 confirm it — the rescan.
+    Any halt in any pass halts the run with the reasoned why.
+  - The brain is called ONCE, after the four resolves, before the
+    mirror loop. Four model calls would cost four times the time
+    and hit the Groq rate limit for no benefit.
+  - Mirror loop: L5 → L6 runs twice on the answer. Either mirror
+    pass can halt with the why. The second pass re-checks the same
+    answer — a deterministic re-check of what pass 1 passed.
+  - Growth is per request, not per pass: one completed request
+    grows the identity by 1, in the processor/server, after the
+    mirror loop has proven the answer. A halted request does not grow.
+  - The result carries the pass counts (resolves_run,
+    mirror_passes_run) so the loop is verifiable live.
 
 A run returns a Result. A halt (L3 gate, tamper break, failed mirror,
 unproven alignments) is a Result with status "halted" and the reasoned
@@ -27,6 +44,11 @@ from .layer6 import Layer6
 from .moat import Moat
 from .trace import Trace
 
+# The loop, per Tony's design (2026-11-25): four continuous resolves
+# through L1 → L2 → L3 → L4, then two mirror passes L5 → L6.
+RESOLVES_PER_RUN = 4
+MIRROR_PASSES_PER_RUN = 2
+
 
 @dataclass
 class Result:
@@ -43,6 +65,12 @@ class Result:
     growth_log: list = field(default_factory=list)
     # Brain 3's flags against the failure record (ROM 2), if any.
     failure_flags: list = field(default_factory=list)
+    # The loop, verifiable live: how many resolve passes and mirror
+    # passes fully completed. A completed run carries 4 and 2. A run
+    # halted in resolve pass 1 carries 0 and 0; a run halted at the
+    # mirror carries 4 and 0. Counts are completed passes only.
+    resolves_run: int = 0
+    mirror_passes_run: int = 0
 
 
 class BWFP:
@@ -59,6 +87,13 @@ class BWFP:
     text. If the live brain cannot be reached, the run halts at Layer 4
     with the reasoned why — a refusal is correct when it carries the
     reasoned why and a halt; nothing is left unanswered inside.
+
+    The loop (Tony, 2026-11-25): four continuous resolves (L1 → L2 →
+    L3 → L4) on the request, then the brain once, then the mirror loop
+    (L5 → L6) twice on the answer. Growth is once per completed run,
+    after the mirror loop — a halted run never grows. The Result
+    carries resolves_run and mirror_passes_run so the loop is
+    verifiable live.
     """
 
     def __init__(self, trained_purpose: str = "leaser identification", answer_fn=None):
@@ -73,11 +108,27 @@ class BWFP:
 
     def run(self, request: str) -> Result:
         trace = Trace()
+        resolves_run = 0
+        mirror_passes_run = 0
         try:
-            packet = self.layer1.run(request, trace)
-            digestion = self.layer2.run(packet, trace)
-            self.layer3.run(packet, trace)
-            alignment = self.layer4.run(packet, digestion, trace)
+            # --- The loop, part 1: four continuous resolves. ---
+            # Pass 1 resolves the request; passes 2–4 confirm it —
+            # the rescan. Any halt in any pass halts the run with
+            # the why. Layer 4 does not grow during the resolves:
+            # growth is per request, not per pass, and happens once,
+            # after the mirror loop (below). A halt in any resolve
+            # means no growth.
+            alignment = None
+            for pass_no in range(1, RESOLVES_PER_RUN + 1):
+                packet = self.layer1.run(request, trace)
+                digestion = self.layer2.run(packet, trace)
+                self.layer3.run(packet, trace)
+                alignment = self.layer4.run(packet, digestion, trace)
+                resolves_run = pass_no
+                trace.record(
+                    "L4",
+                    f"resolve pass {pass_no} of {RESOLVES_PER_RUN} complete",
+                )
             # --- Disclosure gate, before the live brain. ---
             # If the request asks for something BWFP does not have
             # (current/live information, or a capability not built),
@@ -121,8 +172,33 @@ class BWFP:
                 )
                 alignment = replace(alignment, decision=answer_text)
             self.moat.cross_outbound(alignment, trace)
-            reflection = self.layer5.reflect(alignment, trace)
-            returned = self.layer6.return_identity(reflection, trace)
+            # --- The loop, part 2: the mirror loop, twice. ---
+            # The mirror takes the equalized option and sends it back
+            # up to the loop, so the decision is already verified and
+            # aligned before it reaches the mirror. The mirror is the
+            # double check before the answer goes out: either pass
+            # can halt with the why. The second pass re-checks the
+            # same answer — a deterministic re-check of what pass 1
+            # passed.
+            returned = None
+            for pass_no in range(1, MIRROR_PASSES_PER_RUN + 1):
+                reflection = self.layer5.reflect(alignment, trace)
+                returned = self.layer6.return_identity(reflection, trace)
+                mirror_passes_run = pass_no
+                trace.record(
+                    "L6",
+                    f"mirror pass {pass_no} of {MIRROR_PASSES_PER_RUN} "
+                    f"complete — answer re-checked and returned",
+                )
+            # --- Growth: one completed request grows by 1. ---
+            # Only a run that reaches this line grows: any halt — any
+            # resolve, the brain, either mirror pass — never gets
+            # here, so a halted request does not grow. Growth happens
+            # in the processor/server, as designed; the pipeline only
+            # triggers it once, after the answer is proven.
+            _identity, growth_count = self.layer4.processor_server.grow(
+                returned.identity, request[:60], returned.decision, trace
+            )
             return Result(
                 status="completed",
                 request=request,
@@ -130,9 +206,11 @@ class BWFP:
                 identity=returned.identity,
                 why=returned.why,
                 trace=trace,
-                growth_count=returned.growth_count,
+                growth_count=growth_count,
                 growth_log=list(self.layer4.processor_server.growth_log),
                 failure_flags=list(alignment.failure_flags),
+                resolves_run=resolves_run,
+                mirror_passes_run=mirror_passes_run,
             )
         except (Halt, TamperBreak) as exc:
             halted_at = getattr(exc, "layer", "L1")
@@ -142,4 +220,10 @@ class BWFP:
                 why=getattr(exc, "why", str(exc)),
                 halted_at=halted_at,
                 trace=trace,
+                # Growth 0: this halted request added nothing — growth
+                # happens only after a completed run. (The processor/
+                # server count is unchanged; the halted response
+                # reports this request's growth, which is 0.)
+                resolves_run=resolves_run,
+                mirror_passes_run=mirror_passes_run,
             )

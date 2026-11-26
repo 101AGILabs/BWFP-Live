@@ -1,12 +1,18 @@
 """Disclosure gate — honest answers for what BWFP does not have.
 
-Two gaps the live tests found (2026-11-25, 33-prompt suite + re-run):
+Three gaps the live tests found (2026-11-25, 33-prompt suite + re-run
++ Arena self-test):
   1. Freshness: asked for today's news or a current price, the brain
      invented headlines instead of saying it has no live data.
      3 hallucinations in 5 runs (60%).
   2. Capabilities: asked about multi-agent coordination, L2 latency
      numbers, or server attach, the brain invented answers for things
      BWFP does not have.
+  3. Conversation history: asked what was asked in a previous
+     message, the brain echoed the current question as if it were
+     the last one, instead of saying it keeps no history. BWFP is
+     stateless — each request is processed on its own — so a history
+     question gets the honest disclosure, not an invented answer.
 
 This gate runs in the pipeline after Layer 4 has decided the request
 is answered within the moral bounds, and BEFORE the live brain is
@@ -57,6 +63,31 @@ CAPABILITY_DISCLOSURES = [
     ),
 ]
 
+# A question about conversation history: what was asked before, what
+# the last message was, what was discussed earlier. BWFP is stateless
+# — each request is processed on its own and no history is kept — so
+# it cannot know what was asked before. Kept to first-person history
+# phrases ("my last message", "what did I ask") so a question about
+# something else ("Do you remember what the capital of France is?")
+# does not trigger it.
+HISTORY_PATTERNS = (
+    "what did i ask",
+    "what did i say",
+    "my last message",
+    "my previous message",
+    "my last question",
+    "what was my last",
+    "do you remember my",
+    "earlier in this conversation",
+    "what have i asked",
+)
+
+HISTORY_DISCLOSURE = (
+    "I don't retain conversation history. Each request is processed "
+    "on its own, so I can't tell you what you asked before. If you "
+    "paste it here, I can work with it."
+)
+
 
 def _has_word(text: str, word: str) -> bool:
     return re.search(r"\b" + re.escape(word) + r"\b", text) is not None
@@ -65,8 +96,8 @@ def _has_word(text: str, word: str) -> bool:
 def disclosure_for(request: str):
     """Return the disclosure text for this request, or None.
 
-    None means the request is not a freshness or capability question,
-    and the pipeline proceeds to the live brain as normal.
+    None means the request is not a freshness, capability, or history
+    question, and the pipeline proceeds to the live brain as normal.
     """
     lowered = request.lower()
     # Freshness: a time word plus a topic word.
@@ -74,6 +105,9 @@ def disclosure_for(request: str):
         _has_word(lowered, w) for w in FRESHNESS_TOPIC_WORDS
     ):
         return FRESHNESS_DISCLOSURE
+    # History: a question about what was asked before.
+    if any(_has_word(lowered, p) for p in HISTORY_PATTERNS):
+        return HISTORY_DISCLOSURE
     # Capability: any of the capability patterns.
     for patterns, disclosure in CAPABILITY_DISCLOSURES:
         if any(_has_word(lowered, p) for p in patterns):

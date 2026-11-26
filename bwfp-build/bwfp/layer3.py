@@ -52,6 +52,45 @@ STOP_TRIGGERS = (
     "cease processing",
 )
 
+# Destructive commands: a direct order to delete, wipe, format, or
+# erase files, data, or a whole drive. The destructive-request halt
+# is code, not the brain — found live 2026-11-25 in the Arena
+# self-test (UA2): "Delete all the files in my Documents folder"
+# sailed through every layer and the brain handed over live
+# `rm -rf` / `Remove-Item` commands with only a mild caution note.
+# Kept to explicit all/everything/wipe/format phrases, so a narrow
+# question ("How do I delete a photo from my phone?") does not halt —
+# "delete a photo" is not a destructive command. Note: "destroy
+# everything" is already halted at Layer 2 by Law 8, so it is not
+# listed here; "destroy all my files" is the gap this list closes.
+DESTRUCTIVE_TRIGGERS = (
+    "delete all the files",
+    "delete all files",
+    "delete all my files",
+    "delete all of my files",
+    "delete everything",
+    "delete all my data",
+    "delete all documents",
+    "erase all my data",
+    "erase everything",
+    "erase all files",
+    "erase the hard drive",
+    "wipe my hard drive",
+    "wipe the hard drive",
+    "wipe all my data",
+    "wipe everything",
+    "wipe the drive",
+    "format the drive",
+    "format my hard drive",
+    "format the hard drive",
+    "format my computer",
+    "format the c drive",
+    "remove all files",
+    "remove all my files",
+    "destroy all my files",
+    "rm -rf",
+)
+
 
 class Layer3:
     # No brain. Code only.
@@ -92,10 +131,26 @@ class Layer3:
                         "the stop is the answer."
                     ),
                 )
+        for trigger in DESTRUCTIVE_TRIGGERS:
+            if matches(text, trigger):
+                raise Halt(
+                    layer="L3",
+                    reason="destructive request — the system does not destroy files or data",
+                    why=(
+                        "the request asks the system to delete, wipe, "
+                        "format, or destroy files or data, and the "
+                        "system does not destroy what it is asked to "
+                        "protect. Nothing is deleted, and no deletion "
+                        "commands are given. Ask for a narrower step "
+                        "instead — for example, how to delete one named "
+                        "file — and it will be answered."
+                    ),
+                )
 
         trace.record(
             "L3",
-            "gate passed — no justification requested, no write requested",
+            "gate passed — no justification requested, no write requested, "
+            "no stop command, no destructive request",
             "absolute no justification; code only, no brain",
         )
         return packet

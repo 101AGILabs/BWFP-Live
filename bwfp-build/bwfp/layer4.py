@@ -24,6 +24,11 @@ The growth is a count and a short record of each interaction processed;
 the grown identity is what returns. A real server attaches later at
 ProcessorServer.attach_server() — the attachable link line.
 
+Growth is triggered once per COMPLETED run, after the mirror loop
+(loop build, 2026-11-25) — so a halted run never grows. Layer 4
+itself does not grow during the resolves; the pipeline calls
+ProcessorServer.grow() once, after Layer 6 returns.
+
 Brain 3 (input — read the ROMs): reads both ROMs and consults the
 failure record in ROM 2. If the request matches a known failure
 pattern, it flags it for Brain 4. A strong flag means the request asks
@@ -251,6 +256,13 @@ class ProcessorServer:
     record persists across runs, because that is where the identity
     grows.
 
+    Growth is once per COMPLETED run, not per resolve pass: the
+    pipeline calls grow() after the mirror loop has proven the
+    answer, so a halted run never grows. The loop (four resolves,
+    two mirror passes, Tony 2026-11-25) runs Layer 4 four times;
+    none of those runs grows — only the one grow() call after
+    Layer 6 returns does.
+
     The attachable link line: a real server attaches later with
     attach_server(). When one is attached, the packet goes out to it
     and the identity it returns is the one that grows.
@@ -388,18 +400,22 @@ class Layer4:
             "L4",
             "revolved 360 degrees back through the ROMs — decision checked",
         )
-        # --- Out to the processor/server and back with the grown identity. ---
-        # The processor is a slash server at this moment, so growth
-        # happens here: the identity grows through this interaction
-        # and the grown identity is what returns.
+        # --- The identity line. ---
+        # The decision goes out with the identity attached. Growth
+        # does NOT happen here: the identity grows once per COMPLETED
+        # run, in the processor/server, after the mirror loop has
+        # proven the answer — so a halted run never grows. The
+        # pipeline calls ProcessorServer.grow() after Layer 6
+        # returns; until then the packet carries the growth count
+        # so far. (The loop runs Layer 4 four times; none of those
+        # runs grows, so one completed request still grows by 1.)
         identity = packet.dropping_identity.name
-        returned_identity, growth_count = self.processor_server.grow(
-            identity, self.ram["request_summary"], decision, trace
-        )
+        growth_count = self.processor_server.growth_count
         trace.record(
             "L4",
             "transferred back out onto the identity line",
-            f"grown identity attached: {returned_identity} (growth count {growth_count})",
+            f"identity attached: {identity} (growth count so far "
+            f"{growth_count}; growth happens once, after the mirror loop)",
         )
         # --- RAM is cleared. Nothing stays stagnant in the processor. ---
         self.ram.clear()
@@ -410,7 +426,7 @@ class Layer4:
             "no attachment to Layer 4 from the mirror side",
         )
         return AlignmentPacket(
-            identity=returned_identity,
+            identity=identity,
             decision=decision,
             why=why,
             morals_digested=[v.moral for v in digestion.verdicts],

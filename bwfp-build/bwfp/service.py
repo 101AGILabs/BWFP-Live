@@ -36,11 +36,11 @@ from .pipeline import BWFP
 
 AGENT = "BWFP"
 PROVIDER = "101 AGI Labs"
-VERSION = "bwfp-build-2026-11-22"
+VERSION = "bwfp-build-2026-11-25"
 SCOPE = (
     "contained agentic system — six layers, five brains, two ROMs, "
-    "moat, mirror; answers only within the morals, halts with the "
-    "reasoned why"
+    "moat, mirror; four resolves, two mirror passes; answers only "
+    "within the morals, halts with the reasoned why"
 )
 MODEL_NOT_CONFIGURED = (
     "none — GROQ_API_KEY not set; control decision only, "
@@ -82,7 +82,7 @@ def identity_payload() -> dict:
         "agent": AGENT,
         "provider": PROVIDER,
         "scope": SCOPE,
-        "status": "live-ready, first build from design, not tested live",
+        "status": "live-ready, tested live",
         "version": VERSION,
         "brain": f"{MODEL} (via Groq, key from environment only)",
         "model_configured": groq_configured(),
@@ -122,6 +122,10 @@ def task_payload(request_text: str) -> dict:
         "failure_flags": _failure_flags_json(result),
         "halted_at": result.halted_at or "",
         "model": model_status(),
+        # The loop, verifiable live: a completed run carries
+        # resolves_run 4 and mirror_passes_run 2.
+        "resolves_run": result.resolves_run,
+        "mirror_passes_run": result.mirror_passes_run,
     }
     if result.status == "completed" and not groq_configured():
         payload["note"] = (

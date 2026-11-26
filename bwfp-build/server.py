@@ -52,8 +52,7 @@ class LocalHandler(BaseHTTPRequestHandler):
         if path == "/api/task":
             query = parse_qs(urlparse(self.path).query)
             task = (query.get("task") or query.get("request") or [""])[0]
-            api_key = (query.get("api_key") or [""])[0] or None
-            status, payload = handle_task(task, api_key=api_key)
+            status, payload = handle_task(task)
             self._send_json(status, payload)
             return
         self._not_found()
@@ -69,8 +68,7 @@ class LocalHandler(BaseHTTPRequestHandler):
             body = json.loads(raw.decode("utf-8")) if raw else {}
         except (json.JSONDecodeError, UnicodeDecodeError):
             body = raw.decode("utf-8", "replace")
-        api_key = self.headers.get("X-BWFP-Key") or None
-        status, payload = handle_task(body, api_key=api_key)
+        status, payload = handle_task(body)
         self._send_json(status, payload)
 
     def log_message(self, *args):
@@ -81,13 +79,9 @@ def main():
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer(("127.0.0.1", port), LocalHandler)
     key = "set" if os.environ.get("GROQ_API_KEY") else "NOT set (control layer only)"
-    from bwfp.api_keys import keys_configured
-
-    api_keys = "ON — /api/task needs a key" if keys_configured() else "off (open, as today)"
     print(f"BWFP live service on http://127.0.0.1:{port}")
     print("  /api/identity   /api/task")
     print(f"  GROQ_API_KEY: {key}")
-    print(f"  API keys: {api_keys}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
