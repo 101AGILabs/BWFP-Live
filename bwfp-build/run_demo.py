@@ -35,6 +35,8 @@ def show(result, title):
     if result.status == "completed":
         print(f"Identity returned: {result.identity}")
         print(f"Growth count: {result.growth_count}")
+        print(f"Resolves run: {result.resolves_run} (of 4)")
+        print(f"Mirror passes run: {result.mirror_passes_run} (of 2)")
         print(f"Decision: {result.decision}")
         if result.failure_flags:
             print("Failure flags:")
@@ -69,7 +71,7 @@ def main():
     show(system.run(outside_scope), "7. Request outside the identity's scope — Brain 1 halts at Layer 1")
 
     print("\nDone. First pattern-based implementation of the brain rules —")
-    print("not proven, not tested live, and it proves nothing about safety.")
+    print("not proven, and it proves nothing about safety.")
 
 
 if __name__ == "__main__":

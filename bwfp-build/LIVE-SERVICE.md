@@ -3,7 +3,8 @@
 BWFP (Agent 3) as a live HTTP service, so it can run on a server and
 be tested side by side with other systems. The control layer is
 unchanged: six layers, five brains, two ROMs, the moat, the mirror,
-halt with the reasoned why, identity growth on completed runs only.
+four resolves, two mirror passes, halt with the reasoned why,
+identity growth on completed runs only.
 The live brain (openai/gpt-oss-120b via Groq) only produces the
 answer text, after Layer 4 has decided the request is answered
 within the moral bounds, and the mirror (Layer 5) reflects that
@@ -17,16 +18,46 @@ answer text against the morals before anything returns.
 - `GET /api/task?task=...` — the same, as a query.
 
 A completed task returns the answer, the reasoned why, the identity,
-and the growth count. A halted task returns the halt with the
-reasoned why and which layer halted it. An empty request is a 400
-with a clear message, not a crash.
+the growth count, and the loop pass counts (resolves_run 4,
+mirror_passes_run 2). A halted task returns the halt with the
+reasoned why and which layer halted it, and the pass counts so far.
+An empty request is a 400 with a clear message, not a crash.
+
+## API keys — the gate for selling access
+
+`/api/task` is open by default: with no keys configured it works
+exactly as it always has, which is how testing and the Challenge
+run. `/api/identity` stays public always — it answers nothing and
+needs no key.
+
+Keys switch on the moment `BWFP_API_KEYS` is set (Vercel env var,
+Production, comma-separated for more than one key). From then on a
+call to `/api/task` must carry a valid key, or it halts at the door
+with the reasoned why — 401, `halted_at: "key"`, no pipeline run,
+no growth, no brain call, no Groq tokens spent.
+
+A buyer sends the key as the `X-BWFP-Key` header, or as the
+`"api_key"` field in the JSON body, or as `?api_key=...`. Keys are
+compared in constant time and are never logged or returned.
+
+To issue a key: make up a long random string (a password generator
+works), give it to the buyer after they pay, and add it to
+`BWFP_API_KEYS` in Vercel, then redeploy. To revoke a key, delete
+it from that list and redeploy. A real key lives only in that env
+var — never in code, in chat, in a file, or in memory.
+
+Honest limit: this version has no metering, no quota, and no
+per-key usage count — Vercel serverless is stateless, so a count
+kept in memory would reset on every cold start. The gate stops
+unpaid use. Exact metering is a later build, or RapidAPI's proxy,
+which meters for you.
 
 ## How the live brain is wired (and what is NOT changed)
 
 - `bwfp/pipeline.py` gained one optional hook: `BWFP(answer_fn=None)`.
-  With no hook, the pipeline behaves exactly as before — all 28
-  original tests pass unchanged. With a hook, the live brain is
-  called after Layer 4 and before the moat, and its answer text
+  With no hook, the pipeline behaves exactly as before — all 54
+  pipeline tests pass unchanged. With a hook, the live brain is
+  called after the four resolves and before the moat, and its answer text
   becomes the decision the mirror reflects. If the brain cannot be
   reached, the run halts at Layer 4 with the reasoned why.
 - `bwfp/groq_brain.py` (new): calls Groq's OpenAI-compatible
@@ -70,8 +101,9 @@ GROQ_API_KEY=<your key> python3 server.py
 ## Tests
 
 ```
-python3 tests/test_pipeline.py   # 28 tests, the original build
-python3 tests/test_service.py    # 7 tests, the service + the hook
+python3 tests/test_pipeline.py   # 54 tests, the pipeline + the loop
+python3 tests/test_service.py    # 8 tests, the service + the hook
+python3 tests/test_api_keys.py   # 8 tests, the API key gate
 ```
 The service tests use a stub brain, not a real key and no network.
 They prove the mirror checks a model answer: a stub answer that
@@ -110,10 +142,12 @@ Nothing here has been deployed, and no key or account was created.
 ## Honest notes
 
 - First build from design, not a tested system. The layer brains
-  are first pattern-based implementations. The 28 local tests and
-  the 7 service tests check the build's own structure only. They
-  prove nothing about safety, and nothing here has been tested live
-  against a blind set.
+  are first pattern-based implementations. The 54 local tests and
+  the 8 service tests check the build's own structure only. They
+  prove nothing about safety. The service has been tested live
+  (2026-11-25: kill switch and freshness verified live, BWFP-vs-raw
+  Promptfoo 20/20, Arena self-test 9/12); no blind judging of this
+  build yet.
 - On Vercel serverless, the identity grows while one function
   instance is warm and restarts on a cold start. The growth count
   in each response says which instance it came from. A real

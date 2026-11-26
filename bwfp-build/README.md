@@ -9,8 +9,11 @@ Built from the design statement Tony dictated 2026-11-22:
 The system itself only — layers and brains within, two ROMs, RAM,
 processor. A first build from design. The five layer brains now have
 real working rules — first pattern-based implementations (see below).
-It proves the pipeline runs end to end. It does NOT prove safety, and
-it has NOT been tested live.
+It proves the pipeline runs end to end. It does NOT prove safety.
+The live service has been tested live (2026-11-25: kill switch and
+freshness verified live, BWFP-vs-raw Promptfoo 20/20, Arena
+Alignment Index self-test 9/12), but live tests check behavior —
+they do not prove safety.
 
 ## Brain count (this dictation — latest)
 
@@ -44,9 +47,12 @@ bwfp-build/
     moat.py              # the gap — no node attachment, no way back
     layer5.py            # the mirror, one brain — real reflection rule
     layer6.py            # NO brain — the return, proves all alignments
-    pipeline.py          # BWFP: one input through all six layers
+    pipeline.py          # BWFP: one input through all six layers,
+                         # with the loop — four resolves (L1→L2→L3→L4),
+                         # the brain once, two mirror passes (L5→L6);
+                         # growth once per completed run, after the mirror
   tests/
-    test_pipeline.py     # 28 tests, standalone runnable
+    test_pipeline.py     # 54 tests, standalone runnable
 ```
 
 ## How to run
@@ -71,7 +77,9 @@ These are the real working rules for the five layer brains, built
 pattern matching against the request (or the decision, at the mirror),
 in the same style as the existing detector approach. A moral that
 matches no pattern is recorded as digested, NOT as proven safe. They
-are not proven, not tested live, and they prove nothing about safety.
+are not proven, and they prove nothing about safety. The live service
+has been tested live (2026-11-25, see below), but live tests check
+behavior, not safety.
 
 - Brain 1 (Layer 1, identity only): verifies and completes the
   identity scoping — blank identity scopes what to do, what is allowed,
@@ -129,11 +137,18 @@ are not proven, not tested live, and they prove nothing about safety.
   forms the decision by the rule above. The processor makes the
   decision through RAM. RAM is cleared at the end of every run —
   nothing stays stagnant. The processor is a slash server at this
-  moment (processor/server): after the decision, it grows the identity
-  — a count and a short record of each interaction processed — and the
-  grown identity is what returns. The growth record lives on the
+  moment (processor/server). The growth record lives on the
   processor/server, not in RAM, so it survives RAM being cleared. A
   real server attaches later at ProcessorServer.attach_server().
+- The loop (Tony, 2026-11-25): four continuous resolves through
+  L1 → L2 → L3 → L4 on the request — pass 1 resolves, passes 2–4
+  confirm (the rescan); any halt in any pass halts the run with the
+  why. The brain is called once, after the four resolves. The mirror
+  loop runs L5 → L6 twice on the answer; either pass can halt. Growth
+  is once per completed run, in the processor/server, after the mirror
+  loop proves the answer — a halted run never grows. The result
+  carries resolves_run and mirror_passes_run, so the loop is
+  verifiable live.
 - The moat: only a plain alignment packet crosses outward. There is no
   inbound path. Layer 5 never holds a reference to Layer 4.
 - Layer 5: the mirror, one brain, duty is keeping the back door from
@@ -157,10 +172,13 @@ are not proven, not tested live, and they prove nothing about safety.
   Layer 2 brain is necessary — try it out to see how fast it runs with
   all the brains included.
 - No leash. None was built, per the design scope.
-- No live testing. Nothing here has been tested live or against a
-  blind set. The 28 tests above test the build's own structure and its
-  first pattern-based rules only. The rules are not proven, and they
-  prove nothing about safety.
+- Live testing, done 2026-11-25: kill switch and freshness verified
+  live, BWFP-vs-raw Promptfoo comparison 20/20, Arena Alignment
+  Index self-test 9/12 (two of the three failures repaired in code
+  the same day). No blind judging of this build yet. The 54 tests
+  above test the build's own structure and its first pattern-based
+  rules only. The rules are not proven, and they prove nothing about
+  safety.
 
 ## Wording note
 
